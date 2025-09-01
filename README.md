@@ -47,15 +47,6 @@ npm run dev
 
 
 
-Blockchain-Simulation/
-├─ mini_blockchain.py      # Blockchain classes: Blockchain, Wallet, Transaction
-├─ server.py               # FastAPI backend
-├─ blockchain-ui/          # React + Tailwind frontend
-│  ├─ src/
-│  ├─ public/
-│  └─ index.html
-└─ README.md
-
 
 
 
