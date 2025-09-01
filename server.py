@@ -1,51 +1,65 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+# server.py
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from mini_blockchain import Blockchain, Wallet, Transaction
 
-app = FastAPI()
+# ----------------------------
+# Create global blockchain and wallets
+# ----------------------------
 blockchain = Blockchain()
-wallets = {}
 
-class TxRequest(BaseModel):
-    sender: str
-    recipient: str
-    amount: float
+# create some default wallets with real ECDSA keys
+alice = Wallet("alice")
+bob = Wallet("bob")
+miner = Wallet("miner")
 
+wallets = {
+    "alice": alice,
+    "bob": bob,
+    "miner": miner
+}
+
+# ----------------------------
+# FastAPI app
+# ----------------------------
+app = FastAPI(title="Mini Blockchain API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow React frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ----------------------------
+# Endpoints
+# ----------------------------
 @app.get("/chain")
 def get_chain():
-    return [block.__dict__ for block in blockchain.chain]
-
-@app.post("/wallets/{name}")
-def create_wallet(name: str):
-    wallet = Wallet()
-    wallets[name] = wallet
-    return {"name": name, "public_key": wallet.export_public_hex()}
+    return {"chain": blockchain.blocks}
 
 @app.get("/wallets")
-def list_wallets():
-    return {name: w.export_public_hex() for name, w in wallets.items()}
-
-@app.get("/balance/{pubkey}")
-def get_balance(pubkey: str):
-    return {"balance": blockchain.get_balance(pubkey)}
+def get_wallets():
+    return {
+        "wallets": [
+            {"name": w.name, "public_key": w.export_public_hex(), "balance": w.balance()}
+            for w in wallets.values()
+        ]
+    }
 
 @app.post("/tx")
-def create_tx(tx: TxRequest):
-    if tx.sender not in wallets:
-        return {"error": "Unknown sender"}
-    sender_wallet = wallets[tx.sender]
-    new_tx = Transaction(
-        sender=sender_wallet.export_public_hex(),
-        recipient=tx.recipient,
-        amount=tx.amount
-    )
-    new_tx.sign(sender_wallet.private_key)
-    blockchain.add_transaction(new_tx)
-    return {"status": "Transaction added", "tx": new_tx.__dict__}
+def create_transaction(sender: str, recipient_pubhex: str, amount: float):
+    if sender not in wallets:
+        raise HTTPException(status_code=400, detail="Sender wallet not found")
+    tx = Transaction(sender=wallets[sender], recipient_pub=recipient_pubhex, amount=amount)
+    tx.sign(wallets[sender])
+    blockchain.add_transaction(tx)
+    return {"status": "success", "transaction": tx.to_dict()}
 
-@app.post("/mine/{miner}")
-def mine_block(miner: str):
-    if miner not in wallets:
-        return {"error": "Unknown miner"}
-    blockchain.mine_pending(wallets[miner].export_public_hex())
-    return {"status": "Block mined", "height": len(blockchain.chain)}
+@app.post("/mine")
+def mine_block(miner_name: str):
+    if miner_name not in wallets:
+        raise HTTPException(status_code=400, detail="Miner wallet not found")
+    reward_tx = blockchain.mine(miner=wallets[miner_name])
+    return {"status": "success", "reward": reward_tx.to_dict() if reward_tx else None}
