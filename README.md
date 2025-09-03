@@ -1,4 +1,3 @@
-
 # Mini Blockchain Simulation
 
 A simple interactive blockchain simulation built with **Python (FastAPI)** for the backend and **React + TailwindCSS** for the frontend. This project demonstrates the fundamentals of blockchain, wallets, transactions, and mining in a fun, visual way.
